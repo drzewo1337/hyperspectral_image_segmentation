@@ -2,6 +2,7 @@
 Skrypt do automatycznego uruchomienia wszystkich eksperymentów
 3 modele × 5 datasetów = 15 eksperymentów
 """
+import os
 import subprocess
 import sys
 import time
@@ -11,8 +12,8 @@ from datetime import datetime
 MODELS = ['InceptionHSINet', 'SimpleHSINet', 'CNNFromDiagram']
 
 # Wszystkie datasety
-DATASETS = ['Indian', 'PaviaU', 'PaviaC', 'KSC', 'Salinas']
-
+#DATASETS = ['Indian', 'PaviaU', 'PaviaC', 'KSC', 'Salinas']
+DATASETS = ['PaviaC']
 # Parametry treningu
 EPOCHS = 50
 BATCH_SIZE = 16
@@ -28,9 +29,13 @@ def run_experiment(model, dataset, epochs, batch_size, lr, patch_size, val_split
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"{'='*80}\n")
     
+    # Ścieżka do skryptu treningowego
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    run_training_script = os.path.join(script_dir, 'run_training.py')
+    
     cmd = [
         sys.executable,
-        'run_training.py',
+        run_training_script,
         '--model', model,
         '--dataset', dataset,
         '--epochs', str(epochs),

@@ -6,12 +6,20 @@ Użycie:
     python run_training.py --model CNNFromDiagram --dataset Indian --epochs 50
 """
 import argparse
+import sys
+import os
 import torch
-from load_data import get_loaders, DATASET_INFO
-from train import train
-from model1 import InceptionHSINet
-from model2 import SimpleHSINet
-from model3 import CNNFromDiagram
+
+# Dodaj ścieżki do sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'utils'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'models', 'cnn'))
+
+from utils.load_data import get_loaders, DATASET_INFO
+from scripts.train.train import train
+from models.cnn.model1 import InceptionHSINet
+from models.cnn.model2 import SimpleHSINet
+from models.cnn.model3 import CNNFromDiagram
 
 
 # Mapowanie nazw modeli do klas
@@ -144,8 +152,8 @@ def main():
     print(f"\n{'='*80}")
     print("Training completed!")
     print(f"{'='*80}")
-    print(f"Model saved to: best_model_{args.model}_{args.dataset}.pth")
-    print(f"Training log saved to: training_log_{args.model}_{args.dataset}.csv")
+    print(f"Model saved to: results/models/best_model_{args.model}_{args.dataset}.pth")
+    print(f"Training log saved to: results/logs/training_log_{args.model}_{args.dataset}.csv")
 
 
 if __name__ == '__main__':

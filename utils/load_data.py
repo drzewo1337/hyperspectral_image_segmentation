@@ -81,32 +81,165 @@ DATASET_INFO = {
 }
 
 
-def download_file(url, filename):
-    """Pobiera plik jeśli nie istnieje - prosta funkcja jak w train.ipynb"""
-    if not os.path.exists(filename):
-        print(f"Pobieranie {filename}...")
+def download_file(url, filename, max_retries=5):
+    """Pobiera plik jeśli nie istnieje - z obsługą wznawiania pobierania (resume)
+    NIGDY nie usuwa częściowo pobranych plików - zawsze wznawia od miejsca przerwania
+    """
+    import requests
+    import time
+    
+    # Sprawdź czy plik już istnieje i czy jest kompletny
+    resume_pos = 0
+    if os.path.exists(filename):
+        resume_pos = os.path.getsize(filename)
+        file_size_mb = resume_pos / 1024 / 1024
+        
+        # Sprawdź czy plik może być już kompletny (pobierz nagłówki bez pobierania całego pliku)
         try:
-            urllib.request.urlretrieve(url, filename)
-            file_size = os.path.getsize(filename) / 1024 / 1024
-            print(f"Pobrano {filename} ({file_size:.1f} MB)")
-        except Exception as e:
-            try:
-                import requests
-                response = requests.get(url, verify=False, timeout=60)
-                response.raise_for_status()
-                with open(filename, 'wb') as f:
-                    f.write(response.content)
-                file_size = os.path.getsize(filename) / 1024 / 1024
-                print(f"Pobrano {filename} ({file_size:.1f} MB) - użyto requests")
-            except ImportError:
-                print(f"Błąd: requests nie jest zainstalowane.")
-                raise
-            except Exception as e2:
-                print(f"Błąd pobierania {filename}: {str(e2)}")
-                raise
+            head_response = requests.head(url, verify=False, timeout=30, allow_redirects=True)
+            expected_size = int(head_response.headers.get('content-length', 0))
+            
+            if expected_size > 0:
+                # Jeśli plik ma rozmiar zbliżony do oczekiwanego (tolerancja 1MB), uznaj za kompletny
+                if abs(resume_pos - expected_size) < 1024 * 1024:  # 1MB tolerancja
+                    print(f"{filename} już istnieje i wygląda na kompletny ({file_size_mb:.1f} MB)")
+                    return
+                elif resume_pos > expected_size * 0.95:  # 95% to prawdopodobnie kompletny
+                    print(f"{filename} już istnieje ({file_size_mb:.1f} MB) - prawdopodobnie kompletny")
+                    return
+                else:
+                    print(f"Wznawianie pobierania {filename} od {file_size_mb:.1f} MB...")
+            else:
+                # Nie znamy oczekiwanego rozmiaru, sprawdź czy plik wygląda na kompletny
+                if resume_pos > 1024 * 1024:  # Jeśli > 1MB, prawdopodobnie częściowy
+                    print(f"Wznawianie pobierania {filename} od {file_size_mb:.1f} MB...")
+                else:
+                    print(f"{filename} już istnieje ({file_size_mb:.1f} MB)")
+                    return
+        except:
+            # Jeśli HEAD request nie działa, po prostu sprawdź rozmiar
+            if resume_pos > 0:
+                print(f"Wznawianie pobierania {filename} od {file_size_mb:.1f} MB...")
+            else:
+                print(f"{filename} już istnieje ({file_size_mb:.1f} MB)")
+                return
     else:
-        file_size = os.path.getsize(filename) / 1024 / 1024
-        print(f"{filename} już istnieje ({file_size:.1f} MB)")
+        print(f"Pobieranie {filename}...")
+    
+    for attempt in range(max_retries):
+        try:
+            # Przygotuj nagłówki dla resume download
+            headers = {}
+            if resume_pos > 0:
+                headers['Range'] = f'bytes={resume_pos}-'
+            
+            # Użyj requests z obsługą resume
+            response = requests.get(url, verify=False, timeout=180, stream=True, 
+                                  allow_redirects=True, headers=headers)
+            
+            # Sprawdź czy serwer obsługuje resume (206 Partial Content)
+            if resume_pos > 0 and response.status_code == 206:
+                print(f"  ✓ Serwer obsługuje resume - wznawianie od {resume_pos / 1024 / 1024:.1f} MB")
+            elif resume_pos > 0 and response.status_code == 200:
+                # Serwer nie obsługuje resume - sprawdź czy plik może być już kompletny
+                content_length = int(response.headers.get('content-length', 0))
+                if content_length > 0 and abs(resume_pos - content_length) < 1024 * 1024:  # 1MB tolerancja
+                    print(f"  ✓ Plik wygląda na kompletny ({resume_pos / 1024 / 1024:.1f} MB)")
+                    return
+                else:
+                    # Serwer nie obsługuje resume, ale zachowujemy istniejący plik
+                    print(f"  ⚠ Serwer nie obsługuje resume")
+                    print(f"  Zachowujemy istniejący plik ({resume_pos / 1024 / 1024:.1f} MB)")
+                    print(f"  Próbujemy pobrać od nowa (nadpisze, ale lepsze niż tracić postęp)")
+                    # Zaczynamy od nowa, ale plik pozostaje jako backup
+                    resume_pos = 0
+            else:
+                response.raise_for_status()
+            
+            if resume_pos == 0:
+                response.raise_for_status()
+            
+            # Sprawdź oczekiwany rozmiar
+            content_range = response.headers.get('Content-Range', '')
+            if content_range:
+                # Format: "bytes 0-123456/123456789"
+                total_size = int(content_range.split('/')[-1])
+            else:
+                content_length = int(response.headers.get('content-length', 0))
+                if resume_pos > 0 and response.status_code == 206:
+                    # Partial content - content-length to rozmiar części, nie całego pliku
+                    total_size = resume_pos + content_length
+                else:
+                    total_size = content_length
+            
+            # Otwórz plik w trybie append jeśli wznawiamy
+            if resume_pos > 0 and response.status_code == 206:
+                mode = 'ab'  # Append tylko jeśli serwer obsługuje resume
+            else:
+                mode = 'wb'  # Write binary (nadpisze, ale mamy już backup w pamięci)
+            
+            downloaded = resume_pos if mode == 'ab' else 0
+            
+            with open(filename, mode) as f:
+                try:
+                    chunk_size = 64 * 1024  # 64KB chunks
+                    for chunk in response.iter_content(chunk_size=chunk_size):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total_size > 0:
+                                percent = (downloaded / total_size) * 100
+                                # Wyświetl postęp co 2MB
+                                if downloaded % (2 * 1024 * 1024) < chunk_size:
+                                    print(f"  Pobrano {downloaded / 1024 / 1024:.1f} MB / {total_size / 1024 / 1024:.1f} MB ({percent:.1f}%)", end='\r')
+                except (requests.exceptions.ChunkedEncodingError, requests.exceptions.ConnectionError) as e:
+                    # Jeśli transfer się przerwał, zapisz postęp
+                    f.flush()
+                    os.fsync(f.fileno())
+                    raise Exception(f"Transfer przerwany: {downloaded} / {total_size} bytes pobrano")
+            
+            # Weryfikuj rozmiar pliku
+            final_size = os.path.getsize(filename)
+            file_size_mb = final_size / 1024 / 1024
+            
+            # Jeśli znamy oczekiwany rozmiar, sprawdź czy się zgadza
+            if total_size > 0:
+                if abs(final_size - total_size) > 1024 * 1024:  # Tolerancja 1MB
+                    # Plik nie jest kompletny, ale NIE USUWAJ - zachowaj dla następnej próby
+                    raise Exception(f"Niepełne pobieranie: {final_size} / {total_size} bytes (różnica: {abs(final_size - total_size) / 1024 / 1024:.1f} MB)")
+            
+            print(f"\n✓ Pobrano {filename} ({file_size_mb:.1f} MB)")
+            return
+                
+        except ImportError:
+            print(f"Błąd: requests nie jest zainstalowane.")
+            raise
+        except Exception as e:
+            # NIGDY nie usuwaj pliku - zawsze zachowaj postęp
+            error_msg = str(e)[:100]  # Skróć długie komunikaty
+            
+            # Zaktualizuj resume_pos na podstawie aktualnego rozmiaru pliku
+            if os.path.exists(filename):
+                resume_pos = os.path.getsize(filename)
+                current_size_mb = resume_pos / 1024 / 1024
+            else:
+                resume_pos = 0
+                current_size_mb = 0
+            
+            if attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 3
+                print(f"\n✗ Błąd pobierania {filename} (próba {attempt + 1}/{max_retries}): {error_msg}")
+                if resume_pos > 0:
+                    print(f"  ✓ Zachowano postęp: {current_size_mb:.1f} MB - wznawianie od tego miejsca")
+                print(f"⏳ Ponowna próba za {wait_time} sekund...")
+                time.sleep(wait_time)
+            else:
+                print(f"\n✗ Błąd pobierania {filename} po {max_retries} próbach")
+                if resume_pos > 0:
+                    print(f"  ✓ Częściowo pobrany plik ({current_size_mb:.1f} MB) pozostaje w katalogu")
+                    print(f"  Możesz uruchomić skrypt ponownie - wzniesie pobieranie od {current_size_mb:.1f} MB")
+                print(f"   Lub pobrać plik ręcznie z: {url}")
+                raise Exception(f"Nie udało się pobrać {filename} po {max_retries} próbach: {str(e)}")
 
 
 def find_key_in_mat(mat_file, possible_keys):
@@ -140,9 +273,13 @@ def load_data(dataset_name):
     urls = DATASET_URLS[dataset_name]
     keys = DATASET_KEYS[dataset_name]
     
-    # Nazwy plików
-    data_file = f"{dataset_name}_data.mat"
-    gt_file = f"{dataset_name}_gt.mat"
+    # Utwórz folder data/raw jeśli nie istnieje
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'raw')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Nazwy plików z pełną ścieżką
+    data_file = os.path.join(data_dir, f"{dataset_name}_data.mat")
+    gt_file = os.path.join(data_dir, f"{dataset_name}_gt.mat")
     
     # Pobierz pliki
     download_file(urls['data'], data_file)

@@ -1,11 +1,17 @@
+import sys
+import os
 import torch
 import torch.nn as nn
 import numpy as np
 from torch.utils.data import Dataset, DataLoader, ConcatDataset
 from sklearn.decomposition import PCA
-from load_data import load_data, normalize, pad_with_zeros, DATASET_INFO, get_loaders
+
+# Dodaj ścieżki do sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'utils'))
+
+from utils.load_data import load_data, normalize, pad_with_zeros, DATASET_INFO, get_loaders
 import csv
-import os
 
 class FlexibleHSIDataset(Dataset):
 

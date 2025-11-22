@@ -2,11 +2,34 @@
 
 The project investigates hyperspectral imaging for segmentation driven by material-specific spectral signatures. Hyperspectral data comprise hundreds of narrow wavelength bands (e.g., 400–1000 nm). Distinct reflectance profiles enable robust discrimination of materials within a scene.
 
+## Project Structure
+
+```
+hyperspectral_image_segmentation/
+├── models/
+│   ├── cnn/          # CNN models (InceptionHSINet, SimpleHSINet, CNNFromDiagram)
+│   ├── rnn/          # RNN models (to be added)
+│   └── mlp/          # MLP models (to be added)
+├── data/
+│   └── raw/          # Raw dataset files (.mat)
+├── results/
+│   ├── models/       # Trained model checkpoints (.pth)
+│   ├── logs/         # Training logs (.csv)
+│   ├── visualizations/  # Visualization images (.png)
+│   └── metrics/      # Evaluation metrics
+├── scripts/
+│   ├── train/        # Training scripts
+│   ├── evaluate/     # Evaluation scripts
+│   └── visualize/    # Visualization scripts
+├── utils/            # Utility functions (data loading, etc.)
+└── notebooks/        # Jupyter notebooks
+```
+
 ## Models
 
-- **InceptionHSINet** (model1.py): 3D CNN with Inception-like architecture
-- **SimpleHSINet** (model2.py): Simple 2D CNN
-- **CNNFromDiagram** (model3.py): 2D CNN based on diagram architecture
+- **InceptionHSINet** (models/cnn/model1.py): 3D CNN with Inception-like architecture
+- **SimpleHSINet** (models/cnn/model2.py): Simple 2D CNN
+- **CNNFromDiagram** (models/cnn/model3.py): 2D CNN based on diagram architecture
 
 ## Datasets
 
@@ -22,13 +45,20 @@ The project investigates hyperspectral imaging for segmentation driven by materi
 
 ```bash
 # Train InceptionHSINet on Indian dataset
-python run_training.py --model InceptionHSINet --dataset Indian --epochs 50
+python scripts/train/run_training.py --model InceptionHSINet --dataset Indian --epochs 50
 
 # Train SimpleHSINet on PaviaU dataset
-python run_training.py --model SimpleHSINet --dataset PaviaU --epochs 50 --batch_size 32
+python scripts/train/run_training.py --model SimpleHSINet --dataset PaviaU --epochs 50 --batch_size 32
 
 # Train CNNFromDiagram with custom parameters
-python run_training.py --model CNNFromDiagram --dataset Indian --epochs 100 --lr 0.0001
+python scripts/train/run_training.py --model CNNFromDiagram --dataset Indian --epochs 100 --lr 0.0001
+```
+
+### Running all experiments
+
+```bash
+# Run all 15 experiments (3 models × 5 datasets)
+python scripts/train/run_all_experiments.py
 ```
 
 ### Available arguments
@@ -44,8 +74,9 @@ python run_training.py --model CNNFromDiagram --dataset Indian --epochs 100 --lr
 
 ### Output files
 
-- `best_model_{model_name}_{dataset_name}.pth`: Best model checkpoint
-- `training_log_{model_name}_{dataset_name}.csv`: Training history
+- `results/models/best_model_{model_name}_{dataset_name}.pth`: Best model checkpoint
+- `results/logs/training_log_{model_name}_{dataset_name}.csv`: Training history
+- `results/visualizations/visualization_{model_name}_{dataset_name}.png`: Visualization images
 
 ## Requirements
 

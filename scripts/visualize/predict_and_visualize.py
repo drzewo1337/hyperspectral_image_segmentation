@@ -1,13 +1,20 @@
+import sys
+import os
 import numpy as np
 import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.colors import ListedColormap, BoundaryNorm
-from load_data import load_data, normalize, pad_with_zeros
+
+# Dodaj ścieżki do sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'utils'))
+
+from utils.load_data import load_data, normalize, pad_with_zeros
 
 
-def predict_whole_scene(model, dataset_name, patch_size=16, device=None):
+def predict_whole_scene(model, dataset_name, patch_size=8, device=None):
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -78,5 +85,5 @@ def visualize(pred_map, true_map, dataset_name):
     axs[1].axis("off")
 
     plt.tight_layout()
-    plt.show()
+    return fig
 

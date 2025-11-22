@@ -1,6 +1,7 @@
 """
 Funkcja treningowa - prosty kod jak w train.ipynb
 """
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -21,8 +22,14 @@ def train(model, train_loader, val_loader, epochs=10, lr=0.001,
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
 
+    # Utwórz foldery jeśli nie istnieją
+    models_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'results', 'models')
+    logs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'results', 'logs')
+    os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(logs_dir, exist_ok=True)
+    
     # Nazwa pliku logu
-    log_filename = f"training_log_{model_name}_{dataset_name}.csv"
+    log_filename = os.path.join(logs_dir, f"training_log_{model_name}_{dataset_name}.csv")
     
     best_val_acc = 0.0
     
@@ -69,7 +76,7 @@ def train(model, train_loader, val_loader, epochs=10, lr=0.001,
             # Zapisz najlepszy model
             if val_acc > best_val_acc:
                 best_val_acc = val_acc
-                model_filename = f"best_model_{model_name}_{dataset_name}.pth"
+                model_filename = os.path.join(models_dir, f"best_model_{model_name}_{dataset_name}.pth")
                 torch.save(model.state_dict(), model_filename)
             
             # Wyświetl wyniki co epokę z czasem
