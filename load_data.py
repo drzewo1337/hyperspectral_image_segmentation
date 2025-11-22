@@ -4,11 +4,24 @@ Prosty kod jak w train.ipynb, ale dla wszystkich datasetów
 """
 import os
 import urllib.request
+import ssl
 import scipy.io as sio
 import numpy as np
 import torch
 from sklearn.preprocessing import StandardScaler
 from torch.utils.data import Dataset, DataLoader, random_split
+
+# Obsługa SSL - wyłącz weryfikację certyfikatów
+try:
+    ssl._create_default_https_context = ssl._create_unverified_context
+except:
+    pass
+
+try:
+    import requests
+    requests.packages.urllib3.disable_warnings()
+except ImportError:
+    pass
 
 # URLs dla wszystkich 5 datasetów
 DATASET_URLS = {
@@ -21,26 +34,41 @@ DATASET_URLS = {
         'gt':   'https://www.ehu.eus/ccwintco/uploads/5/50/PaviaU_gt.mat',
     },
     'PaviaC': {
-        'data': 'https://www.ehu.eus/ccwintco/uploads/f/f0/Pavia.mat',
+        'data': 'https://www.ehu.eus/ccwintco/uploads/e/e3/Pavia.mat',
         'gt':   'https://www.ehu.eus/ccwintco/uploads/5/53/Pavia_gt.mat',
     },
     'KSC': {
-        'data': 'https://www.ehu.eus/ccwintco/uploads/2/26/KSC.mat',
-        'gt':   'https://www.ehu.eus/ccwintco/uploads/a/a6/KSC_gt.mat',
+        'data': 'http://www.ehu.es/ccwintco/uploads/2/26/KSC.mat',
+        'gt':   'http://www.ehu.es/ccwintco/uploads/a/a6/KSC_gt.mat',
     },
     'Salinas': {
-        'data': 'https://www.ehu.eus/ccwintco/uploads/a/a3/Salinas.mat',
+        'data': 'https://www.ehu.eus/ccwintco/uploads/a/a3/Salinas_corrected.mat',
         'gt':   'https://www.ehu.eus/ccwintco/uploads/f/fa/Salinas_gt.mat',
     }
 }
 
 # Możliwe nazwy kluczy w plikach .mat
 DATASET_KEYS = {
-    'Indian': {'data': 'indian_pines_corrected', 'gt': 'indian_pines_gt'},
-    'PaviaU': {'data': 'paviaU', 'gt': 'paviaU_gt'},
-    'PaviaC': {'data': 'pavia', 'gt': 'pavia_gt'},
-    'KSC': {'data': 'KSC', 'gt': 'KSC_gt'},
-    'Salinas': {'data': 'salinas_corrected', 'gt': 'salinas_gt'}
+    'Indian': {
+        'data': ['indian_pines_corrected', 'Indian_pines_corrected'],
+        'gt': ['indian_pines_gt', 'Indian_pines_gt']
+    },
+    'PaviaU': {
+        'data': ['paviaU', 'PaviaU', 'pavia_u'],
+        'gt': ['paviaU_gt', 'PaviaU_gt', 'pavia_u_gt']
+    },
+    'PaviaC': {
+        'data': ['pavia', 'Pavia', 'paviaC', 'PaviaC'],
+        'gt': ['pavia_gt', 'Pavia_gt', 'paviaC_gt', 'PaviaC_gt']
+    },
+    'KSC': {
+        'data': ['KSC', 'ksc'],
+        'gt': ['KSC_gt', 'ksc_gt']
+    },
+    'Salinas': {
+        'data': ['salinas_corrected', 'Salinas_corrected', 'salinas'],
+        'gt': ['salinas_gt', 'Salinas_gt']
+    }
 }
 
 # Informacje o datasetach
@@ -57,8 +85,28 @@ def download_file(url, filename):
     """Pobiera plik jeśli nie istnieje - prosta funkcja jak w train.ipynb"""
     if not os.path.exists(filename):
         print(f"Pobieranie {filename}...")
-        urllib.request.urlretrieve(url, filename)
-        print(f"Pobrano {filename}")
+        try:
+            urllib.request.urlretrieve(url, filename)
+            file_size = os.path.getsize(filename) / 1024 / 1024
+            print(f"Pobrano {filename} ({file_size:.1f} MB)")
+        except Exception as e:
+            try:
+                import requests
+                response = requests.get(url, verify=False, timeout=60)
+                response.raise_for_status()
+                with open(filename, 'wb') as f:
+                    f.write(response.content)
+                file_size = os.path.getsize(filename) / 1024 / 1024
+                print(f"Pobrano {filename} ({file_size:.1f} MB) - użyto requests")
+            except ImportError:
+                print(f"Błąd: requests nie jest zainstalowane.")
+                raise
+            except Exception as e2:
+                print(f"Błąd pobierania {filename}: {str(e2)}")
+                raise
+    else:
+        file_size = os.path.getsize(filename) / 1024 / 1024
+        print(f"{filename} już istnieje ({file_size:.1f} MB)")
 
 
 def find_key_in_mat(mat_file, possible_keys):
@@ -100,13 +148,30 @@ def load_data(dataset_name):
     download_file(urls['data'], data_file)
     download_file(urls['gt'], gt_file)
     
-    # Załaduj dane
-    mat_data = sio.loadmat(data_file)
-    mat_gt = sio.loadmat(gt_file)
+    # Załaduj dane z obsługą błędów
+    try:
+        mat_data = sio.loadmat(data_file)
+    except (OSError, ValueError) as e:
+        print(f"Błąd odczytu {data_file}: {e}")
+        print(f"Usuwam uszkodzony plik i pobieram ponownie...")
+        if os.path.exists(data_file):
+            os.remove(data_file)
+        download_file(urls['data'], data_file)
+        mat_data = sio.loadmat(data_file)
+    
+    try:
+        mat_gt = sio.loadmat(gt_file)
+    except (OSError, ValueError) as e:
+        print(f"Błąd odczytu {gt_file}: {e}")
+        print(f"Usuwam uszkodzony plik i pobieram ponownie...")
+        if os.path.exists(gt_file):
+            os.remove(gt_file)
+        download_file(urls['gt'], gt_file)
+        mat_gt = sio.loadmat(gt_file)
     
     # Znajdź właściwe klucze
-    data_key = find_key_in_mat(mat_data, keys['data'])
-    gt_key = find_key_in_mat(mat_gt, keys['gt'])
+    data_key = find_key_in_mat(mat_data, keys['data'] if isinstance(keys['data'], list) else [keys['data']])
+    gt_key = find_key_in_mat(mat_gt, keys['gt'] if isinstance(keys['gt'], list) else [keys['gt']])
     
     data = mat_data[data_key]
     labels = mat_gt[gt_key]
@@ -185,22 +250,43 @@ class HSI_Dataset(Dataset):
             # Conv2D: (N, B, H, W) - pasma jako channels
             self.patches = np.transpose(self.patches, (0, 3, 1, 2))  # (N, B, H, W)
         
+        # Konwertuj do torch tensor RAZ podczas inicjalizacji zamiast w __getitem__
+        # To zmniejszy obciążenie CPU podczas treningu
+        self.patches = torch.from_numpy(self.patches).float()
+        self.targets = torch.from_numpy(self.targets).long()
+        
         print(f"Dataset {dataset_name}: {len(self)} samples, shape={self.patches.shape}")
     
     def __len__(self):
         return len(self.patches)
     
     def __getitem__(self, idx):
-        return torch.tensor(self.patches[idx], dtype=torch.float32), torch.tensor(self.targets[idx], dtype=torch.long)
+        # Zwracamy bezpośrednio tensory - już są torch tensory, nie numpy
+        # DataLoader z pin_memory=True i non_blocking=True w train.py przyspieszy transfer
+        return self.patches[idx], self.targets[idx]
 
 
-def get_loaders(dataset_name, batch_size=32, patch_size=16, val_split=0.2, model_type='2d'):
+def get_loaders(dataset_name, batch_size=16, patch_size=8, val_split=0.2, model_type='2d', num_workers=0):
     """
-    Zwraca train_loader i val_loader - prosty kod jak w train.ipynb
+    Zwraca train_loader, val_loader i info - prosty kod jak w train.ipynb
+    
+    Args:
+        num_workers: Liczba wątków do ładowania danych (0 = główny wątek, 2-4 zalecane dla CPU)
     """
     dataset = HSI_Dataset(dataset_name, patch_size=patch_size, model_type=model_type)
     val_len = int(len(dataset) * val_split)
     train_len = len(dataset) - val_len
     train_set, val_set = random_split(dataset, [train_len, val_len])
-    return DataLoader(train_set, batch_size=batch_size, shuffle=True), DataLoader(val_set, batch_size=batch_size)
+    
+    # Przygotuj info
+    info = {
+        'num_bands': dataset.patches.shape[1] if model_type == '2d' else dataset.patches.shape[2],
+        'num_classes': DATASET_INFO[dataset_name]['num_classes']
+    }
+    
+    # num_workers=0 oznacza główny wątek (bezpieczniejsze, ale wolniejsze)
+    # num_workers=2-4 może przyspieszyć, ale wymaga więcej CPU i RAM
+    return (DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=True), 
+            DataLoader(val_set, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True),
+            info)
 

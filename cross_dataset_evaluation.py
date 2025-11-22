@@ -1,7 +1,3 @@
-"""
-Cross-Dataset Evaluation dla segmentacji hiperspektralnej
-Obsługuje różne strategie: train na 1-2 datasetach, test na innych
-"""
 import torch
 import torch.nn as nn
 import numpy as np
@@ -11,22 +7,10 @@ from load_data import load_data, normalize, pad_with_zeros, DATASET_INFO, get_lo
 import csv
 import os
 
-
 class FlexibleHSIDataset(Dataset):
-    """
-    Dataset który może łączyć wiele datasetów
-    Obsługuje różną liczbę pasm przez PCA lub padding
-    """
+
     def __init__(self, dataset_names, patch_size=16, model_type='2d', 
                  pca_components=None, normalize_per_dataset=True):
-        """
-        Args:
-            dataset_names: lista nazw datasetów ['Indian', 'PaviaU', ...]
-            patch_size: rozmiar patchy
-            model_type: '2d' lub '3d'
-            pca_components: jeśli None, używa oryginalnych pasm. Jeśli int, redukuje do N komponentów
-            normalize_per_dataset: czy normalizować każdy dataset osobno
-        """
         self.dataset_names = dataset_names if isinstance(dataset_names, list) else [dataset_names]
         self.patch_size = patch_size
         self.model_type = model_type
@@ -37,7 +21,6 @@ class FlexibleHSIDataset(Dataset):
         self.targets_list = []
         self.dataset_info = {}
         
-        # Zbierz informacje o wszystkich datasetach
         max_bands = 0
         all_num_classes = set()
         
@@ -47,53 +30,44 @@ class FlexibleHSIDataset(Dataset):
             max_bands = max(max_bands, info['num_bands'])
             self.dataset_info[dataset_name] = info
         
-        # Jeśli używamy PCA, ustaw wspólną liczbę komponentów
         if pca_components is None:
             target_bands = max_bands
         else:
             target_bands = pca_components
         
-        # Załaduj i przetwórz każdy dataset
         self.pca_models = {}
         
         for dataset_name in self.dataset_names:
             data, labels = self._load_single_dataset(dataset_name)
             
-            # Ekstrakcja patchy
             patches, targets = self._extract_patches(data, labels, dataset_name)
             
-            # PCA jeśli potrzebne
             if pca_components is not None and patches.shape[-1] != pca_components:
                 patches, pca_model = self._apply_pca(patches, dataset_name)
                 self.pca_models[dataset_name] = pca_model
             elif patches.shape[-1] < target_bands:
-                # Padding do wspólnej liczby pasm
                 patches = self._pad_bands(patches, target_bands)
             
             self.patches_list.append(patches)
             self.targets_list.append(targets)
         
-        # Połącz wszystkie datasety
         self.patches = np.concatenate(self.patches_list, axis=0)
         self.targets = np.concatenate(self.targets_list, axis=0)
         
-        # Przygotuj format dla modelu
         if model_type == '3d':
             self.patches = np.transpose(self.patches, (0, 3, 1, 2))  # (N, B, H, W)
             self.patches = np.expand_dims(self.patches, axis=1)  # (N, 1, B, H, W)
         else:
             self.patches = np.transpose(self.patches, (0, 3, 1, 2))  # (N, B, H, W)
-        
-        # Informacje o finalnym datasecie
+
         self.num_bands = self.patches.shape[1] if model_type == '2d' else self.patches.shape[2]
-        self.num_classes = max(all_num_classes)  # Używamy max liczby klas
+        self.num_classes = max(all_num_classes)
         
         print(f"FlexibleHSIDataset: {len(self)} samples from {self.dataset_names}")
         print(f"  Bands: {self.num_bands}, Max classes: {self.num_classes}")
         print(f"  Shape: {self.patches.shape}")
     
     def _load_single_dataset(self, dataset_name):
-        """Ładuje pojedynczy dataset"""
         data, labels = load_data(dataset_name)
         
         if self.normalize_per_dataset:
@@ -102,7 +76,6 @@ class FlexibleHSIDataset(Dataset):
         return data, labels
     
     def _extract_patches(self, data, labels, dataset_name):
-        """Ekstrakcja patchy - jak w HSI_Dataset"""
         margin = self.patch_size // 2
         padded_data = pad_with_zeros(data, margin)
         
@@ -122,7 +95,6 @@ class FlexibleHSIDataset(Dataset):
         return np.array(patches), np.array(targets)
     
     def _apply_pca(self, patches, dataset_name):
-        """Aplikuje PCA do redukcji wymiarów"""
         N, H, W, B = patches.shape
         patches_flat = patches.reshape(N * H * W, B)
         
@@ -136,7 +108,6 @@ class FlexibleHSIDataset(Dataset):
         return patches_reduced, pca
     
     def _pad_bands(self, patches, target_bands):
-        """Padding pasm do wspólnej liczby"""
         N, H, W, B = patches.shape
         if B < target_bands:
             padding = np.zeros((N, H, W, target_bands - B))
@@ -150,30 +121,20 @@ class FlexibleHSIDataset(Dataset):
         return torch.tensor(self.patches[idx], dtype=torch.float32), torch.tensor(self.targets[idx], dtype=torch.long)
 
 
-def get_cross_dataset_loaders(train_datasets, test_datasets, patch_size=16, batch_size=64, 
+def get_cross_dataset_loaders(train_datasets, test_datasets, patch_size=8, batch_size=16, 
                               val_split=0.2, model_type='2d', pca_components=None):
-    """
-    Tworzy loadery dla cross-dataset evaluation
-    
-    Args:
-        train_datasets: lista datasetów do treningu ['Indian', 'PaviaU']
-        test_datasets: lista datasetów do testowania ['PaviaC', 'KSC', 'Salinas']
-        pca_components: None lub int - liczba komponentów PCA
-    """
-    # Train dataset
     train_dataset = FlexibleHSIDataset(
         train_datasets, patch_size=patch_size, model_type=model_type,
         pca_components=pca_components
     )
     
-    # Test datasets - osobno dla każdego
     test_loaders = {}
     test_info = {}
     
     for test_dataset_name in test_datasets:
         test_dataset = FlexibleHSIDataset(
             [test_dataset_name], patch_size=patch_size, model_type=model_type,
-            pca_components=pca_components  # Użyj tego samego PCA co train
+            pca_components=pca_components
         )
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         test_loaders[test_dataset_name] = test_loader
@@ -182,7 +143,6 @@ def get_cross_dataset_loaders(train_datasets, test_datasets, patch_size=16, batc
             'num_classes': DATASET_INFO[test_dataset_name]['num_classes']
         }
     
-    # Split train na train/val
     from torch.utils.data import random_split
     val_len = int(len(train_dataset) * val_split)
     train_len = len(train_dataset) - val_len
@@ -198,9 +158,6 @@ def get_cross_dataset_loaders(train_datasets, test_datasets, patch_size=16, batc
 
 
 def evaluate_on_test_datasets(model, test_loaders, device, model_name, train_datasets_str):
-    """
-    Ewaluuje model na wielu test datasetach
-    """
     results = {}
     
     model.eval()
@@ -213,9 +170,7 @@ def evaluate_on_test_datasets(model, test_loaders, device, model_name, train_dat
                 inputs, labels = inputs.to(device), labels.to(device)
                 outputs = model(inputs)
                 
-                # Uwaga: jeśli model ma więcej klas niż dataset, weź tylko pierwsze N
                 pred = outputs.argmax(1)
-                # Mapuj predykcje do zakresu klas datasetu
                 max_class = labels.max().item() + 1
                 pred = torch.clamp(pred, 0, max_class - 1)
                 
@@ -233,14 +188,6 @@ def evaluate_on_test_datasets(model, test_loaders, device, model_name, train_dat
 def cross_dataset_experiment(model_class, model_name, train_datasets, test_datasets,
                             patch_size=16, batch_size=64, epochs=50, lr=0.001,
                             device=None, pca_components=None, model_type='2d'):
-    """
-    Pełny eksperyment cross-dataset
-    
-    Args:
-        train_datasets: ['Indian', 'PaviaU'] - datasetów do treningu
-        test_datasets: ['PaviaC', 'KSC', 'Salinas'] - datasetów do testowania
-        pca_components: None lub int - redukcja wymiarów
-    """
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     

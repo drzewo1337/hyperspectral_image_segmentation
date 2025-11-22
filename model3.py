@@ -7,11 +7,13 @@ class CNNFromDiagram(nn.Module):
         super(CNNFromDiagram, self).__init__()
 
         # Conv1: input_channels -> 100, kernel 3x3
-        self.conv1 = nn.Conv2d(in_channels=input_channels, out_channels=100, kernel_size=3, padding=0)
+        # Dodano padding=1 żeby działało z mniejszymi patch_size (np. 8)
+        self.conv1 = nn.Conv2d(in_channels=input_channels, out_channels=100, kernel_size=3, padding=1)
         self.pool1 = nn.MaxPool2d(kernel_size=2)
 
         # Conv2: 100 -> 100, kernel 3x3
-        self.conv2 = nn.Conv2d(in_channels=100, out_channels=100, kernel_size=3, padding=0)
+        # Dodano padding=1 żeby działało z mniejszymi patch_size
+        self.conv2 = nn.Conv2d(in_channels=100, out_channels=100, kernel_size=3, padding=1)
         self.pool2 = nn.MaxPool2d(kernel_size=2)
 
         # Oblicz rozmiar wyjścia po konwolucjach - dynamicznie jak w train.ipynb

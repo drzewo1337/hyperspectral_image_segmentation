@@ -1,37 +1,50 @@
-/best_model_model3_Indian.pth
-/best_model_model3_PaviaU.pth
-/best_model_model3_PaviaC.pth
-/best_model_model3_KSC.pth
-/best_model_model3_Salinas.pth
-/best_model_model3_Indian.pth
-/best_model_model3_PaviaU.pth
-/best_model_model3_PaviaC.pth
-/best_model_model3_KSC.pth
-/best_model_model3_Salinas.pth
+# Model files
+*.pth
+best_model_*.pth
 
-/training_log_model3_Train_Indian.csv
-/training_log_model3_Train_PaviaU.csv
-/training_log_model3_Train_PaviaC.csv
-/training_log_model3_Train_KSC.csv
-/training_log_model3_Train_Salinas.csv
-/training_log_model3_Train_Indian.csv
-/training_log_model3_Train_PaviaU.csv
-/training_log_model3_Train_PaviaC.csv
-/training_log_model3_Train_KSC.csv
-/training_log_model3_Train_Salinas.csv
+# Training logs
+*.csv
+training_log_*.csv
 
-/indian_pines_corrected.mat
-/indian_pines_gt.mat
-/paviaU.mat
-/paviaU_gt.mat
-/pavia.mat
-/pavia_gt.mat
-/KSC.mat
-/KSC_gt.mat
-/salinas_corrected.mat
-/salinas_gt.mat
+# Data files
+*.mat
+*_data.mat
+*_gt.mat
+*_corrected.mat
 
-/all_results.csv
-/results_pivot.csv
-/results_heatmap.png
-/results_per_model.png
+# Results files
+all_results.csv
+results_*.csv
+results_*.png
+*_heatmap.png
+*_per_model.png
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

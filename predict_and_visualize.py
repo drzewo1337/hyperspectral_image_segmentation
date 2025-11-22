@@ -1,6 +1,3 @@
-"""
-Predykcja całej sceny i wizualizacja - prosty kod jak w train.ipynb
-"""
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,10 +8,6 @@ from load_data import load_data, normalize, pad_with_zeros
 
 
 def predict_whole_scene(model, dataset_name, patch_size=16, device=None):
-    """
-    Predykcja całej sceny - dokładnie jak w train.ipynb
-    Prosty kod
-    """
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
@@ -30,8 +23,6 @@ def predict_whole_scene(model, dataset_name, patch_size=16, device=None):
     padded_data = pad_with_zeros(data, margin)
     output = np.zeros((h, w), dtype=np.uint8)
 
-    # Sprawdź czy model to Conv3D czy Conv2D - prosty sposób
-    # Sprawdzamy pierwszy Conv layer w modelu
     is_3d = False
     for module in model.modules():
         if isinstance(module, nn.Conv3d):
@@ -45,31 +36,23 @@ def predict_whole_scene(model, dataset_name, patch_size=16, device=None):
             
             patch = padded_data[i:i+patch_size, j:j+patch_size, :]
             patch = np.expand_dims(patch, axis=0)
-            
-            # Przygotuj patch w odpowiednim formacie
+
             if is_3d:
-                # Conv3D: (1, 1, B, H, W)
                 patch = np.transpose(patch, (0, 3, 1, 2))  # (1, B, H, W)
                 patch = np.expand_dims(patch, axis=1)  # (1, 1, B, H, W)
             else:
-                # Conv2D: (1, B, H, W)
                 patch = np.transpose(patch, (0, 3, 1, 2))  # (1, B, H, W)
             
             patch = torch.tensor(patch, dtype=torch.float32).to(device)
 
             with torch.no_grad():
                 pred = model(patch)
-                output[i, j] = pred.argmax(1).item() + 1  # +1 by pasowało do etykiet
+                output[i, j] = pred.argmax(1).item() + 1
 
     return output, labels
 
 
 def visualize(pred_map, true_map, dataset_name):
-    """
-    Wizualizacja - prosty kod jak w train.ipynb
-    Różne colormapy dla różnych datasetów
-    """
-    # Liczba klas dla każdego datasetu
     num_classes_map = {
         'Indian': 16,
         'PaviaU': 9,
@@ -79,10 +62,9 @@ def visualize(pred_map, true_map, dataset_name):
     }
     
     num_classes = num_classes_map.get(dataset_name, 16)
-    
-    # Prosty colormap - generuj kolory automatycznie
+
     colors = plt.cm.tab20(np.linspace(0, 1, num_classes + 1))
-    colors[0] = [0, 0, 0, 1]  # Background na czarno
+    colors[0] = [0, 0, 0, 1]
     cmap = ListedColormap(colors)
     norm = BoundaryNorm(boundaries=np.arange(num_classes + 2) - 0.5, ncolors=num_classes + 1)
 
