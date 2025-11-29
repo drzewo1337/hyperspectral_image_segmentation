@@ -16,7 +16,16 @@ import csv
 class FlexibleHSIDataset(Dataset):
 
     def __init__(self, dataset_names, patch_size=16, model_type='2d', 
-                 pca_components=None, normalize_per_dataset=True):
+                 pca_components=None, normalize_per_dataset=True, target_bands=None):
+        """
+        Args:
+            dataset_names: Lista nazw datasetów
+            patch_size: Rozmiar patchy
+            model_type: '2d' lub '3d'
+            pca_components: Liczba komponentów PCA (None = bez PCA)
+            normalize_per_dataset: Czy normalizować każdy dataset osobno
+            target_bands: Docelowa liczba pasm (jeśli None, używa max_bands z datasetów)
+        """
         self.dataset_names = dataset_names if isinstance(dataset_names, list) else [dataset_names]
         self.patch_size = patch_size
         self.model_type = model_type
@@ -36,10 +45,14 @@ class FlexibleHSIDataset(Dataset):
             max_bands = max(max_bands, info['num_bands'])
             self.dataset_info[dataset_name] = info
         
-        if pca_components is None:
-            target_bands = max_bands
+        # Jeśli target_bands jest podane, użyj go (dla test dataset)
+        # W przeciwnym razie użyj max_bands (dla train dataset)
+        if target_bands is not None:
+            self.target_bands = target_bands
+        elif pca_components is not None:
+            self.target_bands = pca_components
         else:
-            target_bands = pca_components
+            self.target_bands = max_bands
         
         self.pca_models = {}
         
@@ -48,11 +61,19 @@ class FlexibleHSIDataset(Dataset):
             
             patches, targets = self._extract_patches(data, labels, dataset_name)
             
-            if pca_components is not None and patches.shape[-1] != pca_components:
+            # Dostosuj liczbę pasm do target_bands
+            current_bands = patches.shape[-1]
+            
+            if pca_components is not None and current_bands != pca_components:
                 patches, pca_model = self._apply_pca(patches, dataset_name)
                 self.pca_models[dataset_name] = pca_model
-            elif patches.shape[-1] < target_bands:
-                patches = self._pad_bands(patches, target_bands)
+            elif current_bands < self.target_bands:
+                # Padding jeśli mniej pasm
+                patches = self._pad_bands(patches, self.target_bands)
+            elif current_bands > self.target_bands:
+                # Redukcja jeśli więcej pasm (np. Salinas 204 -> 200)
+                patches = patches[:, :, :, :self.target_bands]
+                print(f"  {dataset_name}: Reduced bands {current_bands} -> {self.target_bands}")
             
             self.patches_list.append(patches)
             self.targets_list.append(targets)
@@ -134,13 +155,18 @@ def get_cross_dataset_loaders(train_datasets, test_datasets, patch_size=8, batch
         pca_components=pca_components
     )
     
+    # Pobierz target_bands z train dataset (używane przez model)
+    # train_dataset.target_bands to liczba pasm użyta podczas tworzenia datasetu
+    train_target_bands = train_dataset.target_bands
+    
     test_loaders = {}
     test_info = {}
     
     for test_dataset_name in test_datasets:
+        # WAŻNE: Użyj target_bands z train dataset, aby test dataset miał tę samą liczbę pasm
         test_dataset = FlexibleHSIDataset(
             [test_dataset_name], patch_size=patch_size, model_type=model_type,
-            pca_components=pca_components
+            pca_components=pca_components, target_bands=train_target_bands
         )
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         test_loaders[test_dataset_name] = test_loader
@@ -230,10 +256,16 @@ def cross_dataset_experiment(model_class, model_name, train_datasets, test_datas
     
     print(f"Model: {model_name}, Input: {num_bands} bands, {num_classes} classes")
     
-    # Train
-    import sys
-    sys.path.append('.')
-    from train import train as train_func
+    # Train - import funkcji treningowej
+    train_script_path = os.path.join(os.path.dirname(__file__), '..', 'train', 'train.py')
+    if not os.path.exists(train_script_path):
+        raise FileNotFoundError(f"Training script not found: {train_script_path}")
+    
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("train_module", train_script_path)
+    train_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(train_module)
+    train_func = train_module.train
     
     trained_model = train_func(
         model, train_loader, val_loader, epochs=epochs, lr=lr,
