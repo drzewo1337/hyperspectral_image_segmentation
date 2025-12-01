@@ -1,0 +1,47 @@
+{
+  "valid": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "InceptionHSINet": {
+      "mean_test_accuracy": 22.734711052926876,
+      "std_test_accuracy": 0.0,
+      "min_test_accuracy": 22.734711052926876,
+      "max_test_accuracy": 22.734711052926876,
+      "mean_val_accuracy": 47.03511801957398,
+      "std_val_accuracy": 0.0,
+      "min_val_accuracy": 47.03511801957398,
+      "max_val_accuracy": 47.03511801957398,
+      "n_splits": 1
+    },
+    "SimpleHSINet": {
+      "mean_test_accuracy": 22.924069571722463,
+      "std_test_accuracy": 0.0,
+      "min_test_accuracy": 22.924069571722463,
+      "max_test_accuracy": 22.924069571722463,
+      "mean_val_accuracy": 24.889656495874114,
+      "std_val_accuracy": 0.0,
+      "min_val_accuracy": 24.889656495874114,
+      "max_val_accuracy": 24.889656495874114,
+      "n_splits": 1
+    },
+    "CNNFromDiagram": {
+      "mean_test_accuracy": 23.646437254535254,
+      "std_test_accuracy": 0.0,
+      "min_test_accuracy": 23.646437254535254,
+      "max_test_accuracy": 23.646437254535254,
+      "mean_val_accuracy": 33.793897524467475,
+      "std_val_accuracy": 0.0,
+      "min_val_accuracy": 33.793897524467475,
+      "max_val_accuracy": 33.793897524467475,
+      "n_splits": 1
+    },
+    "overall": {
+      "mean_accuracy": 29.17064831985002,
+      "std_accuracy": 8.848715013226261,
+      "min_accuracy": 22.734711052926876,
+      "max_accuracy": 47.03511801957398,
+      "n_tests": 6
+    }
+  }
+}

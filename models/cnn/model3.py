@@ -26,6 +26,19 @@ class CNNFromDiagram(nn.Module):
         self.fc1 = nn.Linear(flatten_dim, 84)
         self.fc2 = nn.Linear(84, num_classes)
 
+    def extract_features(self, x):
+        """
+        Ekstrahuje embedding (cechy) zamiast klasyfikacji
+        Zwraca: (batch, 84) - embedding przed klasyfikatorem
+        """
+        x = F.relu(self.conv1(x))
+        x = self.pool1(x)
+        x = F.relu(self.conv2(x))
+        x = self.pool2(x)
+        x = x.view(x.size(0), -1)  # Flatten
+        features = F.relu(self.fc1(x))  # (batch, 84)
+        return features
+
     def forward(self, x):
         x = F.relu(self.conv1(x))
         x = self.pool1(x)

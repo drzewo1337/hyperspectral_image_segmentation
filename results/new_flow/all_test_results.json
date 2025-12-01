@@ -1,0 +1,52 @@
+{
+  "30": {
+    "InceptionHSINet": [
+      {
+        "split_id": 1,
+        "train_datasets": [
+          "Indian",
+          "Salinas",
+          "PaviaC"
+        ],
+        "test_dataset": "PaviaU",
+        "final_test_dataset": "KSC",
+        "test_accuracy": 22.734711052926876,
+        "final_test_accuracy": 47.03511801957398,
+        "test_n_samples": 42776,
+        "final_test_n_samples": 5211
+      }
+    ],
+    "SimpleHSINet": [
+      {
+        "split_id": 1,
+        "train_datasets": [
+          "Indian",
+          "Salinas",
+          "PaviaC"
+        ],
+        "test_dataset": "PaviaU",
+        "final_test_dataset": "KSC",
+        "test_accuracy": 22.924069571722463,
+        "final_test_accuracy": 24.889656495874114,
+        "test_n_samples": 42776,
+        "final_test_n_samples": 5211
+      }
+    ],
+    "CNNFromDiagram": [
+      {
+        "split_id": 1,
+        "train_datasets": [
+          "Indian",
+          "Salinas",
+          "PaviaC"
+        ],
+        "test_dataset": "PaviaU",
+        "final_test_dataset": "KSC",
+        "test_accuracy": 23.646437254535254,
+        "final_test_accuracy": 33.793897524467475,
+        "test_n_samples": 42776,
+        "final_test_n_samples": 5211
+      }
+    ]
+  }
+}

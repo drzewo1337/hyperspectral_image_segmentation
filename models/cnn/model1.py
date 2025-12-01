@@ -41,6 +41,20 @@ class InceptionHSINet(nn.Module):
             nn.Linear(16 * 3, num_classes)
         )
 
+    def extract_features(self, x):
+        """
+        Ekstrahuje embedding (cechy) zamiast klasyfikacji
+        Zwraca: (batch, 48) - embedding przed klasyfikatorem
+        """
+        x = self.entry(x)
+        x1 = self.branch1(x)
+        x2 = self.branch2(x)
+        x3 = self.branch3(x)
+        x = torch.cat([x1, x2, x3], dim=1)
+        x = self.pool(x)
+        x = x.view(x.size(0), -1)  # (batch, 48)
+        return x
+
     def forward(self, x):
         x = self.entry(x)
         x1 = self.branch1(x)

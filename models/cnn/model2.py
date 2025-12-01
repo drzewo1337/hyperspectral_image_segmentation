@@ -17,6 +17,19 @@ class SimpleHSINet(nn.Module):
         self.dropout2 = nn.Dropout(0.3)
         self.fc2 = nn.Linear(180, num_classes)
 
+    def extract_features(self, x):
+        """
+        Ekstrahuje embedding (cechy) zamiast klasyfikacji
+        Zwraca: (batch, 180) - embedding przed klasyfikatorem
+        """
+        x = F.relu(self.conv1(x))        # (N, 90, 5, 5)
+        x = F.relu(self.conv2(x))        # (N, 270, 3, 3)
+        x = self.dropout1(x)             # (N, 270, 3, 3)
+        x = F.adaptive_avg_pool2d(x, 1)  # (N, 270, 1, 1)
+        x = self.flatten(x)              # (N, 270)
+        features = F.relu(self.fc1(x))   # (N, 180)
+        return features
+
     def forward(self, x):
         x = F.relu(self.conv1(x))        # (N, 90, 5, 5)
         x = F.relu(self.conv2(x))        # (N, 270, 3, 3)
